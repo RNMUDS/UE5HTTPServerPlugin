@@ -1,0 +1,24 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "UE5 HTTP Server",
+  "Description": "HTTP server for MCP control",
+  "Category": "Networking",
+  "CreatedBy": "RN-Lab",
+  "CreatedByURL": "",
+  "DocsURL": "",
+  "MarketplaceURL": "",
+  "SupportURL": "",
+  "CanContainContent": false,
+  "IsBetaVersion": false,
+  "IsExperimentalVersion": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "UE5HTTPServer",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}
