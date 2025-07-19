@@ -20,6 +20,38 @@ Unreal Engine 5プロジェクト with HTTPサーバープラグイン。外部�
 3. `.uproject`ファイルをダブルクリックして開く
 4. PIE（Play In Editor）モードで実行
 
+## ビルド方法
+
+### macOS
+
+プロジェクトディレクトリで以下のコマンドを実行：
+
+```bash
+"/Users/Shared/Epic Games/UE_5.5/Engine/Build/BatchFiles/Mac/Build.sh" \
+  UE5MCPProjectEditor \
+  Mac \
+  Development \
+  -project="$(pwd)/UE5MCPProject.uproject" \
+  -waitmutex
+```
+
+### Windows
+
+プロジェクトディレクトリで以下のコマンドを実行：
+
+```batch
+"C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" ^
+  UE5MCPProjectEditor ^
+  Win64 ^
+  Development ^
+  -project="%cd%\UE5MCPProject.uproject" ^
+  -waitmutex
+```
+
+注意: 
+- Unreal Engineのインストールパスは環境により異なる場合があります
+- ビルド前にVisual Studio 2022（Windows）またはXcode（macOS）がインストールされている必要があります
+
 ## クイックテスト
 
 プロジェクトに含まれているテストスクリプトを実行：
