@@ -5,8 +5,12 @@ Unreal Engine 5用のHTTPサーバープラグインです。REST APIを通じ�
 ## 機能
 
 - REST APIでアクターの作成・編集・削除
+- バッチ作成機能（複数アクターの一括作成）
+- グリッド作成機能（規則的な配置でアクターを生成）
+- 全アクター削除機能
 - シーン情報の取得
 - アクターの位置・回転・スケール・色の変更
+- 個別アクターの詳細なサイズ指定（dimensions/scale）
 - ライトの制御（色・強度・減衰半径）
 - MCP (Model Context Protocol) 対応
 
@@ -202,6 +206,202 @@ echo "  - 個別のcurlコマンドは ue5-curl-simple.md を参照してくだ�
 echo "  - クリーンアップするには各アクターをDELETEメソッドで削除してください"
 ```
 
+## バッチ作成機能の使用例
+
+### 個別アクターの詳細なサイズ指定
+
+#### dimensionsを使った物理的なサイズ指定
+```bash
+# 幅200、奥行き100、高さ50のキューブを作成
+curl -X POST http://localhost:8080/actors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "Cube",
+    "name": "CustomSizeCube",
+    "location": {"x": 0, "y": 0, "z": 100},
+    "dimensions": {"width": 200, "depth": 100, "height": 50}
+  }'
+
+# 直径300の球体を作成
+curl -X POST http://localhost:8080/actors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "Sphere",
+    "name": "LargeSphere",
+    "location": {"x": 300, "y": 0, "z": 100},
+    "dimensions": {"width": 300, "depth": 300, "height": 300}
+  }'
+```
+
+#### scaleを使った倍率指定
+```bash
+# 2倍の大きさのキューブを作成
+curl -X POST http://localhost:8080/actors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "Cube",
+    "name": "DoubleSizeCube",
+    "location": {"x": 0, "y": 0, "z": 100},
+    "scale": {"uniform": 2}
+  }'
+
+# X方向に3倍、Y方向に2倍に伸ばしたシリンダーを作成
+curl -X POST http://localhost:8080/actors \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "Cylinder",
+    "name": "StretchedCylinder",
+    "location": {"x": -300, "y": 0, "z": 100},
+    "scale": {"x": 3, "y": 2, "z": 1}
+  }'
+```
+
+### バッチ作成
+
+#### 複数のアクターを一度に作成
+```bash
+curl -X POST http://localhost:8080/actors/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "actors": [
+      {
+        "type": "Cube",
+        "name": "RedCube",
+        "location": {"x": 0, "y": 0, "z": 100},
+        "color": {"r": 1, "g": 0, "b": 0},
+        "dimensions": {"width": 200, "depth": 200, "height": 200}
+      },
+      {
+        "type": "Sphere",
+        "name": "BlueSphere",
+        "location": {"x": 300, "y": 0, "z": 100},
+        "color": {"r": 0, "g": 0, "b": 1},
+        "dimensions": {"width": 150, "depth": 150, "height": 150}
+      },
+      {
+        "type": "Cylinder",
+        "name": "GreenCylinder",
+        "location": {"x": -300, "y": 0, "z": 100},
+        "color": {"r": 0, "g": 1, "b": 0},
+        "dimensions": {"width": 100, "depth": 100, "height": 300}
+      }
+    ]
+  }'
+```
+
+### グリッド作成
+
+#### 基本的なグリッド
+```bash
+# 5x5のキューブグリッドを作成
+curl -X POST http://localhost:8080/actors/grid \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "Cube",
+    "rows": 5,
+    "columns": 5,
+    "spacing": 150,
+    "startLocation": {"x": 0, "y": 0, "z": 100}
+  }'
+
+# 10x10の球体グリッドを作成（全て赤色）
+curl -X POST http://localhost:8080/actors/grid \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "Sphere",
+    "rows": 10,
+    "columns": 10,
+    "spacing": 100,
+    "startLocation": {"x": 0, "y": 0, "z": 100},
+    "color": {"r": 1, "g": 0, "b": 0}
+  }'
+```
+
+#### 詳細なグリッド
+```bash
+# 8x8のキューブグリッドを詳細設定で作成
+curl -X POST http://localhost:8080/actors/grid \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "Cube",
+    "rows": 8,
+    "columns": 8,
+    "spacing": 200,
+    "startLocation": {"x": -800, "y": -800, "z": 50},
+    "color": {"r": 0, "g": 0.2, "b": 1},
+    "dimensions": {"width": 100, "depth": 100, "height": 150}
+  }'
+```
+
+### 全アクター削除
+```bash
+# シーンの全てのアクターを削除
+curl -X DELETE http://localhost:8080/actors
+```
+
+## 実用的な使用例
+
+### 建物の壁を一度に作成
+```bash
+curl -X POST http://localhost:8080/actors/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "actors": [
+      {
+        "type": "Cube",
+        "name": "FrontWall",
+        "location": {"x": 0, "y": -500, "z": 250},
+        "dimensions": {"width": 1000, "depth": 20, "height": 500},
+        "color": {"r": 0.5, "g": 0.5, "b": 0.5}
+      },
+      {
+        "type": "Cube",
+        "name": "BackWall",
+        "location": {"x": 0, "y": 500, "z": 250},
+        "dimensions": {"width": 1000, "depth": 20, "height": 500},
+        "color": {"r": 0.5, "g": 0.5, "b": 0.5}
+      },
+      {
+        "type": "Cube",
+        "name": "LeftWall",
+        "location": {"x": -500, "y": 0, "z": 250},
+        "dimensions": {"width": 20, "depth": 1000, "height": 500},
+        "color": {"r": 0.5, "g": 0.5, "b": 0.5}
+      },
+      {
+        "type": "Cube",
+        "name": "RightWall",
+        "location": {"x": 500, "y": 0, "z": 250},
+        "dimensions": {"width": 20, "depth": 1000, "height": 500},
+        "color": {"r": 0.5, "g": 0.5, "b": 0.5}
+      }
+    ]
+  }'
+```
+
+### ライトグリッド
+```bash
+# 天井照明として4x4のライトグリッドを作成
+curl -X POST http://localhost:8080/actors/grid \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "Light",
+    "rows": 4,
+    "columns": 4,
+    "spacing": 400,
+    "startLocation": {"x": -600, "y": -600, "z": 500},
+    "color": {"r": 1, "g": 0.9, "b": 0.7},
+    "intensity": 3000,
+    "attenuationRadius": 500
+  }'
+```
+
+## パフォーマンスの考慮事項
+
+- 一度に作成するアクターは100個程度まで推奨
+- 大量のアクター作成時は、PIEモードのパフォーマンスに注意
+- グリッド作成は最大20x20程度を推奨
+
 ## サポートされているアクタータイプ
 
 - **Cube**: 立方体
@@ -217,6 +417,9 @@ echo "  - クリーンアップするには各アクターをDELETEメソッド�
 | GET | `/health` | ヘルスチェック |
 | GET | `/scene` | シーン情報を取得 |
 | POST | `/actors` | 新しいアクターを作成 |
+| POST | `/actors/batch` | 複数のアクターを一括作成 |
+| POST | `/actors/grid` | グリッド状にアクターを作成 |
+| DELETE | `/actors` | 全てのアクターを削除 |
 | GET | `/actors/{name}` | 特定のアクター情報を取得 |
 | PUT | `/actors/{name}` | アクターを更新 |
 | DELETE | `/actors/{name}` | アクターを削除 |
@@ -228,6 +431,39 @@ echo "  - クリーンアップするには各アクターをDELETEメソッド�
 ## MCP (Model Context Protocol) 対応
 
 このプラグインはMCPをサポートしており、AIアシスタントツールから直接UE5を制御できます。
+
+### Claude Desktop設定
+
+MCPサーバー（ue5-server.py）をClaude Desktopで使用するための設定方法：
+
+1. Claude Desktopの設定ファイルを開く：
+```bash
+# macOSの場合
+open ~/Library/Application\ Support/Claude/
+
+# 設定ファイルを編集
+nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
+```
+
+2. 設定ファイルに以下を追加：
+```json
+{
+  "mcpServers": {
+    "ue5-control": {
+      "command": "/usr/bin/python3",
+      "args": ["/Users/rn/Documents/Unreal Projects/UE5MCPProject/Plugins/ue5-server.py"],
+      "env": {
+        "UE5_SERVER_URL": "http://localhost:8080"
+      }
+    }
+  }
+}
+```
+
+**重要な注意事項：**
+- `command`には、`which python3`を実行して得られた正しいPythonパスを指定してください
+- `args`のパスは、実際のue5-server.pyの場所に合わせて変更してください
+- 上記の例では `/Users/rn/Documents/Unreal Projects/UE5MCPProject/Plugins/ue5-server.py` を使用しています
 
 ## ライセンス
 

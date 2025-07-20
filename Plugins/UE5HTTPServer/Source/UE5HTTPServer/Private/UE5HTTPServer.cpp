@@ -87,6 +87,16 @@ private:
                 }
             ));
 
+        // バッチアクター作成
+        HttpRouter->BindRoute(FHttpPath(TEXT("/actors/batch")), 
+            EHttpServerRequestVerbs::VERB_POST,
+            FHttpRequestHandler::CreateLambda(
+                [this](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+                {
+                    return HandleCreateActorsBatch(Request, OnComplete);
+                }
+            ));
+
         // アクター移動
         HttpRouter->BindRoute(FHttpPath(TEXT("/actors/*/location")), 
             EHttpServerRequestVerbs::VERB_PUT,
@@ -137,6 +147,16 @@ private:
                 }
             ));
 
+        // 全アクター削除
+        HttpRouter->BindRoute(FHttpPath(TEXT("/actors")), 
+            EHttpServerRequestVerbs::VERB_DELETE,
+            FHttpRequestHandler::CreateLambda(
+                [this](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+                {
+                    return HandleDeleteAllActors(Request, OnComplete);
+                }
+            ));
+
         // シーン情報取得
         HttpRouter->BindRoute(FHttpPath(TEXT("/scene")), 
             EHttpServerRequestVerbs::VERB_GET,
@@ -150,19 +170,15 @@ private:
         UE_LOG(LogTemp, Warning, TEXT("HTTP routes configured"));
     }
 
-    bool HandleCreateActor(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+    // 単一アクター作成の処理を分離
+    AActor* CreateSingleActor(const TSharedPtr<FJsonObject>& ActorJson, UWorld* World)
     {
-        TSharedPtr<FJsonObject> JsonBody = ParseJsonBody(Request);
-        if (!JsonBody.IsValid())
-        {
-            SendErrorResponse(OnComplete, TEXT("Invalid JSON"));
-            return true;
-        }
+        if (!ActorJson.IsValid() || !World) return nullptr;
 
-        FString ActorType = JsonBody->GetStringField(TEXT("type"));
-        FString ActorName = JsonBody->GetStringField(TEXT("name"));
+        FString ActorType = ActorJson->GetStringField(TEXT("type"));
+        FString ActorName = ActorJson->GetStringField(TEXT("name"));
         
-        TSharedPtr<FJsonObject> LocationObj = JsonBody->GetObjectField(TEXT("location"));
+        TSharedPtr<FJsonObject> LocationObj = ActorJson->GetObjectField(TEXT("location"));
         FVector Location(
             LocationObj->GetNumberField(TEXT("x")),
             LocationObj->GetNumberField(TEXT("y")),
@@ -171,9 +187,9 @@ private:
 
         // 色情報の取得（オプション）
         FLinearColor Color = FLinearColor::White;
-        if (JsonBody->HasField(TEXT("color")))
+        if (ActorJson->HasField(TEXT("color")))
         {
-            TSharedPtr<FJsonObject> ColorObj = JsonBody->GetObjectField(TEXT("color"));
+            TSharedPtr<FJsonObject> ColorObj = ActorJson->GetObjectField(TEXT("color"));
             Color = FLinearColor(
                 ColorObj->GetNumberField(TEXT("r")),
                 ColorObj->GetNumberField(TEXT("g")),
@@ -184,9 +200,9 @@ private:
 
         // スケール情報の取得（オプション）
         FVector Scale = FVector(1.0f, 1.0f, 1.0f);
-        if (JsonBody->HasField(TEXT("scale")))
+        if (ActorJson->HasField(TEXT("scale")))
         {
-            TSharedPtr<FJsonObject> ScaleObj = JsonBody->GetObjectField(TEXT("scale"));
+            TSharedPtr<FJsonObject> ScaleObj = ActorJson->GetObjectField(TEXT("scale"));
             if (ScaleObj->HasField(TEXT("uniform")))
             {
                 float UniformScale = ScaleObj->GetNumberField(TEXT("uniform"));
@@ -195,18 +211,25 @@ private:
             else
             {
                 Scale = FVector(
-                    ScaleObj->GetNumberField(TEXT("x")),
-                    ScaleObj->GetNumberField(TEXT("y")),
-                    ScaleObj->GetNumberField(TEXT("z"))
+                    ScaleObj->HasField(TEXT("x")) ? ScaleObj->GetNumberField(TEXT("x")) : 1.0f,
+                    ScaleObj->HasField(TEXT("y")) ? ScaleObj->GetNumberField(TEXT("y")) : 1.0f,
+                    ScaleObj->HasField(TEXT("z")) ? ScaleObj->GetNumberField(TEXT("z")) : 1.0f
                 );
             }
         }
 
-        UWorld* World = GetGameWorld();
-        if (!World)
+        // サイズ情報（dimensions）の取得（オプション）
+        FVector Dimensions;
+        bool bHasDimensions = false;
+        if (ActorJson->HasField(TEXT("dimensions")))
         {
-            SendErrorResponse(OnComplete, TEXT("No active world"));
-            return true;
+            TSharedPtr<FJsonObject> DimensionsObj = ActorJson->GetObjectField(TEXT("dimensions"));
+            Dimensions = FVector(
+                DimensionsObj->GetNumberField(TEXT("width")),
+                DimensionsObj->GetNumberField(TEXT("depth")),
+                DimensionsObj->GetNumberField(TEXT("height"))
+            );
+            bHasDimensions = true;
         }
 
         AActor* NewActor = nullptr;
@@ -219,14 +242,50 @@ private:
             if (MeshActor)
             {
                 FString MeshPath;
+                FVector BaseScale = Scale;
+                
                 if (ActorType == TEXT("Cube"))
+                {
                     MeshPath = TEXT("/Engine/BasicShapes/Cube.Cube");
+                    if (bHasDimensions)
+                    {
+                        // Cubeの基本サイズは100x100x100
+                        BaseScale.X *= Dimensions.X / 100.0f;
+                        BaseScale.Y *= Dimensions.Y / 100.0f;
+                        BaseScale.Z *= Dimensions.Z / 100.0f;
+                    }
+                }
                 else if (ActorType == TEXT("Sphere"))
+                {
                     MeshPath = TEXT("/Engine/BasicShapes/Sphere.Sphere");
+                    if (bHasDimensions)
+                    {
+                        // Sphereの基本直径は100
+                        float AvgDimension = (Dimensions.X + Dimensions.Y + Dimensions.Z) / 3.0f;
+                        BaseScale *= AvgDimension / 100.0f;
+                    }
+                }
                 else if (ActorType == TEXT("Cylinder"))
+                {
                     MeshPath = TEXT("/Engine/BasicShapes/Cylinder.Cylinder");
+                    if (bHasDimensions)
+                    {
+                        // Cylinderの基本サイズは直径100、高さ200
+                        BaseScale.X *= Dimensions.X / 100.0f;
+                        BaseScale.Y *= Dimensions.Y / 100.0f;
+                        BaseScale.Z *= Dimensions.Z / 200.0f;
+                    }
+                }
                 else if (ActorType == TEXT("Plane"))
+                {
                     MeshPath = TEXT("/Engine/BasicShapes/Plane.Plane");
+                    if (bHasDimensions)
+                    {
+                        // Planeの基本サイズは100x100
+                        BaseScale.X *= Dimensions.X / 100.0f;
+                        BaseScale.Y *= Dimensions.Y / 100.0f;
+                    }
+                }
                 
                 UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *MeshPath);
                 if (Mesh)
@@ -244,7 +303,7 @@ private:
                 }
                 
                 // スケールの設定
-                MeshActor->SetActorScale3D(Scale);
+                MeshActor->SetActorScale3D(BaseScale);
                 
                 NewActor = MeshActor;
             }
@@ -254,23 +313,20 @@ private:
             APointLight* LightActor = World->SpawnActor<APointLight>(Location, FRotator::ZeroRotator);
             if (LightActor)
             {
-                // ライトの色と強度設定
                 UPointLightComponent* LightComponent = LightActor->PointLightComponent;
                 if (LightComponent)
                 {
                     LightComponent->SetLightColor(Color);
                     
-                    // 強度の設定（オプション）
-                    if (JsonBody->HasField(TEXT("intensity")))
+                    if (ActorJson->HasField(TEXT("intensity")))
                     {
-                        float Intensity = JsonBody->GetNumberField(TEXT("intensity"));
+                        float Intensity = ActorJson->GetNumberField(TEXT("intensity"));
                         LightComponent->SetIntensity(Intensity);
                     }
                     
-                    // 減衰半径の設定（オプション）
-                    if (JsonBody->HasField(TEXT("attenuationRadius")))
+                    if (ActorJson->HasField(TEXT("attenuationRadius")))
                     {
-                        float Radius = JsonBody->GetNumberField(TEXT("attenuationRadius"));
+                        float Radius = ActorJson->GetNumberField(TEXT("attenuationRadius"));
                         LightComponent->SetAttenuationRadius(Radius);
                     }
                 }
@@ -285,9 +341,32 @@ private:
         if (NewActor)
         {
             NewActor->SetActorLabel(ActorName);
-            
-            UE_LOG(LogTemp, Warning, TEXT("Created actor: %s at location (%f, %f, %f) with color (%f, %f, %f)"), 
-                *ActorName, Location.X, Location.Y, Location.Z, Color.R, Color.G, Color.B);
+        }
+
+        return NewActor;
+    }
+
+    bool HandleCreateActor(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+    {
+        TSharedPtr<FJsonObject> JsonBody = ParseJsonBody(Request);
+        if (!JsonBody.IsValid())
+        {
+            SendErrorResponse(OnComplete, TEXT("Invalid JSON"));
+            return true;
+        }
+
+        UWorld* World = GetGameWorld();
+        if (!World)
+        {
+            SendErrorResponse(OnComplete, TEXT("No active world"));
+            return true;
+        }
+
+        AActor* NewActor = CreateSingleActor(JsonBody, World);
+
+        if (NewActor)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Created actor: %s"), *NewActor->GetActorLabel());
             
             TSharedPtr<FJsonObject> ResponseJson = MakeShareable(new FJsonObject);
             ResponseJson->SetStringField(TEXT("status"), TEXT("success"));
@@ -300,6 +379,110 @@ private:
             SendErrorResponse(OnComplete, TEXT("Failed to create actor"));
         }
 
+        return true;
+    }
+
+    bool HandleCreateActorsBatch(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+    {
+        TSharedPtr<FJsonObject> JsonBody = ParseJsonBody(Request);
+        if (!JsonBody.IsValid())
+        {
+            SendErrorResponse(OnComplete, TEXT("Invalid JSON"));
+            return true;
+        }
+
+        UWorld* World = GetGameWorld();
+        if (!World)
+        {
+            SendErrorResponse(OnComplete, TEXT("No active world"));
+            return true;
+        }
+
+        TArray<TSharedPtr<FJsonValue>> ActorsArray = JsonBody->GetArrayField(TEXT("actors"));
+        TArray<FString> CreatedActorIds;
+        int32 SuccessCount = 0;
+        int32 FailCount = 0;
+
+        for (const TSharedPtr<FJsonValue>& ActorValue : ActorsArray)
+        {
+            TSharedPtr<FJsonObject> ActorObj = ActorValue->AsObject();
+            AActor* NewActor = CreateSingleActor(ActorObj, World);
+            
+            if (NewActor)
+            {
+                CreatedActorIds.Add(NewActor->GetName());
+                SuccessCount++;
+            }
+            else
+            {
+                FailCount++;
+            }
+        }
+
+        UE_LOG(LogTemp, Warning, TEXT("Batch created %d actors (failed: %d)"), SuccessCount, FailCount);
+
+        TSharedPtr<FJsonObject> ResponseJson = MakeShareable(new FJsonObject);
+        ResponseJson->SetStringField(TEXT("status"), TEXT("success"));
+        ResponseJson->SetNumberField(TEXT("created"), SuccessCount);
+        ResponseJson->SetNumberField(TEXT("failed"), FailCount);
+        
+        TArray<TSharedPtr<FJsonValue>> IdsArray;
+        for (const FString& Id : CreatedActorIds)
+        {
+            IdsArray.Add(MakeShareable(new FJsonValueString(Id)));
+        }
+        ResponseJson->SetArrayField(TEXT("actorIds"), IdsArray);
+        
+        SendJsonResponse(OnComplete, ResponseJson);
+        return true;
+    }
+
+    bool HandleDeleteAllActors(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
+    {
+        UWorld* World = GetGameWorld();
+        if (!World)
+        {
+            SendErrorResponse(OnComplete, TEXT("No active world"));
+            return true;
+        }
+
+        int32 DeletedCount = 0;
+        TArray<AActor*> ActorsToDelete;
+
+        // まず削除対象のアクターを収集
+        for (TActorIterator<AActor> ActorItr(World); ActorItr; ++ActorItr)
+        {
+            AActor* Actor = *ActorItr;
+            
+            // システムアクターは削除しない
+            if (Actor->IsA<AWorldSettings>() || 
+                Actor->GetActorLabel().IsEmpty() ||
+                Actor->GetActorLabel().Contains(TEXT("DefaultPhysicsVolume")) ||
+                Actor->GetActorLabel().Contains(TEXT("WorldPartition")) ||
+                Actor->GetActorLabel().Contains(TEXT("GameplayDebugger")) ||
+                Actor->GetActorLabel().Contains(TEXT("WorldDataLayers")) ||
+                Actor->GetActorLabel().Contains(TEXT("Brush")))
+            {
+                continue;
+            }
+            
+            ActorsToDelete.Add(Actor);
+        }
+
+        // アクターを削除
+        for (AActor* Actor : ActorsToDelete)
+        {
+            Actor->Destroy();
+            DeletedCount++;
+        }
+
+        UE_LOG(LogTemp, Warning, TEXT("Deleted %d actors"), DeletedCount);
+
+        TSharedPtr<FJsonObject> ResponseJson = MakeShareable(new FJsonObject);
+        ResponseJson->SetStringField(TEXT("status"), TEXT("success"));
+        ResponseJson->SetNumberField(TEXT("deletedCount"), DeletedCount);
+        
+        SendJsonResponse(OnComplete, ResponseJson);
         return true;
     }
 
