@@ -6,6 +6,7 @@ from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
 import mcp.server.stdio
 import mcp.types as types
+import random
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,9 +15,87 @@ UE5_BASE_URL = "http://localhost:8080"
 
 server = Server("ue5-control")
 
+# 色のプリセット
+COLOR_PRESETS = {
+    "red": {"r": 1.0, "g": 0.0, "b": 0.0, "a": 1.0},
+    "blue": {"r": 0.0, "g": 0.0, "b": 1.0, "a": 1.0},
+    "green": {"r": 0.0, "g": 1.0, "b": 0.0, "a": 1.0},
+    "yellow": {"r": 1.0, "g": 1.0, "b": 0.0, "a": 1.0},
+    "purple": {"r": 0.5, "g": 0.0, "b": 1.0, "a": 1.0},
+    "orange": {"r": 1.0, "g": 0.5, "b": 0.0, "a": 1.0},
+    "cyan": {"r": 0.0, "g": 1.0, "b": 1.0, "a": 1.0},
+    "pink": {"r": 1.0, "g": 0.0, "b": 0.5, "a": 1.0},
+    "white": {"r": 1.0, "g": 1.0, "b": 1.0, "a": 1.0},
+    "brown": {"r": 0.6, "g": 0.3, "b": 0.1, "a": 1.0},
+    "black": {"r": 0.0, "g": 0.0, "b": 0.0, "a": 1.0},
+    "gray": {"r": 0.5, "g": 0.5, "b": 0.5, "a": 1.0}
+}
+
 @server.list_tools()
 async def list_tools() -> list[types.Tool]:
     return [
+        # 既存のツールに加えて新しいツールを追加
+        types.Tool(
+            name="create_random_cubes",
+            description="Create multiple cubes with random colors at random positions",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "description": "Number of cubes to create"
+                    },
+                    "base_name": {
+                        "type": "string",
+                        "description": "Base name for cubes (will append index)"
+                    },
+                    "position_range": {
+                        "type": "object",
+                        "properties": {
+                            "x_min": {"type": "number", "default": -500},
+                            "x_max": {"type": "number", "default": 500},
+                            "y_min": {"type": "number", "default": -500},
+                            "y_max": {"type": "number", "default": 500},
+                            "z_min": {"type": "number", "default": 0},
+                            "z_max": {"type": "number", "default": 300}
+                        }
+                    },
+                    "use_preset_colors": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Use preset colors instead of random RGB values"
+                    }
+                },
+                "required": ["count", "base_name"]
+            }
+        ),
+        types.Tool(
+            name="create_color_palette",
+            description="Create a palette of cubes showing all preset colors",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_location": {
+                        "type": "object",
+                        "properties": {
+                            "x": {"type": "number"},
+                            "y": {"type": "number"},
+                            "z": {"type": "number"}
+                        },
+                        "required": ["x", "y", "z"]
+                    },
+                    "spacing": {
+                        "type": "number",
+                        "default": 150,
+                        "description": "Distance between cubes"
+                    }
+                },
+                "required": ["start_location"]
+            }
+        ),
+        # 既存のツールも含める
         types.Tool(
             name="create_actor",
             description="Create a new actor in UE5",
@@ -325,7 +404,89 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
                     text="❌ Cannot connect to UE5. Ensure UE5 is running with HTTP server on port 8080."
                 )]
 
-            if name == "create_actor":
+            # 新しいツールの処理
+            if name == "create_random_cubes":
+                count = arguments["count"]
+                base_name = arguments["base_name"]
+                pos_range = arguments.get("position_range", {})
+                use_presets = arguments.get("use_preset_colors", True)
+                
+                x_min = pos_range.get("x_min", -500)
+                x_max = pos_range.get("x_max", 500)
+                y_min = pos_range.get("y_min", -500)
+                y_max = pos_range.get("y_max", 500)
+                z_min = pos_range.get("z_min", 0)
+                z_max = pos_range.get("z_max", 300)
+                
+                actors = []
+                color_names = list(COLOR_PRESETS.keys())
+                
+                for i in range(count):
+                    if use_presets:
+                        color = COLOR_PRESETS[random.choice(color_names)]
+                    else:
+                        color = {
+                            "r": random.random(),
+                            "g": random.random(),
+                            "b": random.random(),
+                            "a": 1.0
+                        }
+                    
+                    actor = {
+                        "type": "Cube",
+                        "name": f"{base_name}_{i}",
+                        "location": {
+                            "x": random.uniform(x_min, x_max),
+                            "y": random.uniform(y_min, y_max),
+                            "z": random.uniform(z_min, z_max)
+                        },
+                        "color": color
+                    }
+                    actors.append(actor)
+                
+                batch_data = {"actors": actors}
+                response = await client.post(f"{UE5_BASE_URL}/actors/batch", json=batch_data)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    return [types.TextContent(
+                        type="text",
+                        text=f"✅ Created {count} random cubes | Colors: {'preset' if use_presets else 'random RGB'}"
+                    )]
+                else:
+                    return [types.TextContent(type="text", text=f"❌ Failed: {response.text}")]
+
+            elif name == "create_color_palette":
+                start_loc = arguments["start_location"]
+                spacing = arguments.get("spacing", 150)
+                
+                actors = []
+                for i, (color_name, color_value) in enumerate(COLOR_PRESETS.items()):
+                    actor = {
+                        "type": "Cube",
+                        "name": f"Palette_{color_name}",
+                        "location": {
+                            "x": start_loc["x"] + (i % 4) * spacing,
+                            "y": start_loc["y"] + (i // 4) * spacing,
+                            "z": start_loc["z"]
+                        },
+                        "color": color_value
+                    }
+                    actors.append(actor)
+                
+                batch_data = {"actors": actors}
+                response = await client.post(f"{UE5_BASE_URL}/actors/batch", json=batch_data)
+                
+                if response.status_code == 200:
+                    return [types.TextContent(
+                        type="text",
+                        text=f"✅ Created color palette with {len(COLOR_PRESETS)} colors"
+                    )]
+                else:
+                    return [types.TextContent(type="text", text=f"❌ Failed: {response.text}")]
+
+            # 既存のツールの処理（前のコードと同じ）
+            elif name == "create_actor":
                 # MCPのmaterialパラメータをUE5のcolorパラメータに変換
                 ue5_params = {
                     "type": arguments["type"],
@@ -565,7 +726,7 @@ async def main():
             write_stream,
             InitializationOptions(
                 server_name="ue5-control",
-                server_version="0.2.0",
+                server_version="0.3.0",
                 capabilities=server.get_capabilities(
                     notification_options=NotificationOptions(),
                     experimental_capabilities={}
