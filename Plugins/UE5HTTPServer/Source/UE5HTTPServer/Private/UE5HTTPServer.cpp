@@ -22,15 +22,15 @@
 #include "Editor.h"
 #endif
 
-class FUE5HTTPServer
+class UE5HTTPServer
 {
 public:
-    FUE5HTTPServer()
+    UE5HTTPServer()
     {
         HttpServerModule = &FHttpServerModule::Get();
     }
 
-    ~FUE5HTTPServer()
+    ~UE5HTTPServer()
     {
         StopServer();
     }

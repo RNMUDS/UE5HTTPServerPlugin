@@ -3,9 +3,9 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
-class FUE5HTTPServer;
+class UE5HTTPServer;
 
-class FUE5HTTPServerModule : public IModuleInterface
+class UE5HTTPServerModule : public IModuleInterface
 {
 public:
     /** IModuleInterface implementation */
@@ -13,5 +13,5 @@ public:
     virtual void ShutdownModule() override;
 
 private:
-    TSharedPtr<FUE5HTTPServer> HTTPServer;
+    TSharedPtr<UE5HTTPServer> HTTPServer;
 };
