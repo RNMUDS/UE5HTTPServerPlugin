@@ -436,7 +436,17 @@ curl -X POST http://localhost:8080/actors/grid \
 
 MCPサーバー（ue5-server.py）をClaude Desktopで使用するための設定方法：
 
-1. Claude Desktopの設定ファイルを開く：
+#### 1. Pythonパスの確認
+
+まず、使用するPythonのパスを確認します：
+```bash
+which python3
+# または
+which python
+```
+
+#### 2. Claude Desktopの設定ファイルを開く
+
 ```bash
 # macOSの場合
 open ~/Library/Application\ Support/Claude/
@@ -445,7 +455,8 @@ open ~/Library/Application\ Support/Claude/
 nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
-2. 設定ファイルに以下を追加：
+#### 3. 設定ファイルに以下を追加
+
 ```json
 {
   "mcpServers": {
@@ -460,10 +471,20 @@ nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
 }
 ```
 
-**重要な注意事項：**
-- `command`には、`which python3`を実行して得られた正しいPythonパスを指定してください
-- `args`のパスは、実際のue5-server.pyの場所に合わせて変更してください
-- 上記の例では `/Users/rn/Documents/Unreal Projects/UE5MCPProject/Plugins/ue5-server.py` を使用しています
+**重要な設定項目：**
+- **`command`**: `which python3`で確認したPythonの実行パスを指定
+  - 例: `/usr/bin/python3`, `/usr/local/bin/python3`, `/opt/homebrew/bin/python3`など
+- **`args`**: ue5-server.pyファイルの完全パスを指定
+  - 上記の例では `/Users/rn/Documents/Unreal Projects/UE5MCPProject/Plugins/ue5-server.py`
+- **`env`**: 環境変数の設定
+  - `UE5_SERVER_URL`: UE5 HTTPサーバーのURL（デフォルト: `http://localhost:8080`）
+
+#### 4. 設定の確認
+
+1. Claude Desktopを再起動
+2. MCPサーバーが正しく認識されているか確認
+3. UE5でPIEモードを起動してHTTPサーバーを開始
+4. Claude Desktopから「UE5でキューブを作成して」などのコマンドを試す
 
 ## ライセンス
 
