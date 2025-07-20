@@ -103,13 +103,20 @@ async def list_tools() -> list[types.Tool]:
                                     },
                                     "required": ["x", "y", "z"]
                                 },
-                                "color": {
+                                "material": {
                                     "type": "object",
                                     "properties": {
-                                        "r": {"type": "number"},
-                                        "g": {"type": "number"},
-                                        "b": {"type": "number"},
-                                        "a": {"type": "number"}
+                                        "type": {"type": "string", "enum": ["color", "preset"]},
+                                        "color": {
+                                            "type": "object",
+                                            "properties": {
+                                                "r": {"type": "number"},
+                                                "g": {"type": "number"},
+                                                "b": {"type": "number"},
+                                                "a": {"type": "number"}
+                                            }
+                                        },
+                                        "name": {"type": "string"}
                                     }
                                 },
                                 "scale": {
@@ -372,7 +379,37 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
                     return [types.TextContent(type="text", text=f"❌ Failed: {response.text}")]
 
             elif name == "create_actors_batch":
-                response = await client.post(f"{UE5_BASE_URL}/actors/batch", json=arguments)
+                # 各アクターのmaterialをcolorに変換
+                processed_actors = []
+                for actor in arguments.get("actors", []):
+                    processed_actor = {
+                        "type": actor["type"],
+                        "name": actor["name"],
+                        "location": actor["location"]
+                    }
+                    
+                    # materialパラメータをcolorに変換
+                    if "material" in actor and actor["material"].get("type") == "color":
+                        processed_actor["color"] = actor["material"]["color"]
+                    
+                    # その他のパラメータもコピー
+                    if "scale" in actor:
+                        processed_actor["scale"] = actor["scale"]
+                    if "dimensions" in actor:
+                        processed_actor["dimensions"] = actor["dimensions"]
+                    
+                    # Light特有のパラメータ
+                    if actor["type"] == "Light":
+                        if "intensity" in actor:
+                            processed_actor["intensity"] = actor["intensity"]
+                        if "attenuationRadius" in actor:
+                            processed_actor["attenuationRadius"] = actor["attenuationRadius"]
+                    
+                    processed_actors.append(processed_actor)
+                
+                batch_data = {"actors": processed_actors}
+                response = await client.post(f"{UE5_BASE_URL}/actors/batch", json=batch_data)
+                
                 if response.status_code == 200:
                     result = response.json()
                     return [types.TextContent(
