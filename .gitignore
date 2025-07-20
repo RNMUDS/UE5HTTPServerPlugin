@@ -68,3 +68,4 @@ Source/*
 *.uproject
 .DS_Store
 UE5MCPProject(Mac).xcworkspace
+.venv/

@@ -8,7 +8,7 @@ Unreal Engine 5用のHTTPサーバープラグインです。REST APIを通じ�
 - アクターの位置・回転・スケール・色の変更
 - MCP (Model Context Protocol) 対応
 
-## インストール
+## UE5プラグインの作成
 
 1. UE5で新規プロジェクトを作成
   - Engineのバージョン5.5で起動
@@ -35,7 +35,7 @@ Deploying now!
 Total execution time: 5.52 seconds
 ```
 
-## 使い方
+## 使い方（ターミナルからUE5にオブジェクト生成）
 
 ### 1. サーバーの起動
 
@@ -72,3 +72,31 @@ curl -X POST http://localhost:8080/actors \
     "scale": {"uniform": 1.5}
   }'
 ```
+## MCPサーバの作成（Claude Desktopから自然言語でUE5にオブジェクト生成）
+たとえばUE5MCPProjectの中にMCP_serverディレクトリを作成し、その中で作業
+1. 仮想環境構築
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install mcp httpx
+```
+2. このディレクトリにue5_server.pyを配置
+3. Claude Desktop設定を編集
+```bash
+nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
+```
+以下のように追記（pythonとue5_mcp_server.pyのパスを適宜変更）
+```
+{
+  "mcpServers": {
+    "ue5-control": {
+      "command": "/Users/rn/.pyenv/shims/python",
+      "args": ["/Users/rn/Documents/Unreal Projects/UE5MCPProject/MCP_server/ue5_mcp_server.py"],
+      "env": {
+        "UE5_SERVER_URL": "http://localhost:8080"
+      }
+    }
+  }
+}
+```
+4. Claude Desktopを再起動、エラーなく起動できることを確認
