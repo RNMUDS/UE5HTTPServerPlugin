@@ -455,11 +455,32 @@ open ~/Library/Application\ Support/Claude/
 nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
-#### 3. 設定ファイルに以下を追加
+#### 3. 設定ファイルの編集
 
+設定ファイル（`claude_desktop_config.json`）を以下のように編集します：
+
+**新規作成の場合：**
 ```json
 {
   "mcpServers": {
+    "ue5-control": {
+      "command": "/usr/bin/python3",
+      "args": ["/Users/rn/Documents/Unreal Projects/UE5MCPProject/Plugins/ue5-server.py"],
+      "env": {
+        "UE5_SERVER_URL": "http://localhost:8080"
+      }
+    }
+  }
+}
+```
+
+**既存の設定がある場合：**
+```json
+{
+  "mcpServers": {
+    "existing-server": {
+      // 既存の設定...
+    },
     "ue5-control": {
       "command": "/usr/bin/python3",
       "args": ["/Users/rn/Documents/Unreal Projects/UE5MCPProject/Plugins/ue5-server.py"],
@@ -476,15 +497,59 @@ nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
   - 例: `/usr/bin/python3`, `/usr/local/bin/python3`, `/opt/homebrew/bin/python3`など
 - **`args`**: ue5-server.pyファイルの完全パスを指定
   - 上記の例では `/Users/rn/Documents/Unreal Projects/UE5MCPProject/Plugins/ue5-server.py`
+  - スペースを含むパスの場合もそのまま記述（エスケープ不要）
 - **`env`**: 環境変数の設定
   - `UE5_SERVER_URL`: UE5 HTTPサーバーのURL（デフォルト: `http://localhost:8080`）
 
+**よくある設定ミス：**
+- ❌ パスにエスケープ文字を使用: `"\/Users\/rn\/..."`
+- ❌ 相対パスを使用: `"./ue5-server.py"`
+- ❌ カンマの付け忘れ（複数のMCPサーバーがある場合）
+- ✅ 正しい例: `"/Users/rn/Documents/Unreal Projects/UE5MCPProject/Plugins/ue5-server.py"`
+
 #### 4. 設定の確認
 
-1. Claude Desktopを再起動
-2. MCPサーバーが正しく認識されているか確認
-3. UE5でPIEモードを起動してHTTPサーバーを開始
-4. Claude Desktopから「UE5でキューブを作成して」などのコマンドを試す
+1. **Claude Desktopを完全に終了して再起動**
+   - メニューバーのClaudeアイコンから「Quit Claude」を選択
+   - 再度Claude Desktopを起動
+
+2. **MCPサーバーの認識確認**
+   - Claude Desktopの設定画面でMCPサーバーが表示されているか確認
+   - エラーが表示されている場合は、パスやPythonの設定を再確認
+
+3. **動作テスト**
+   - UE5でPIEモードを起動（HTTPサーバーが自動的に起動）
+   - Claude Desktopで以下のようなコマンドを試す：
+     - 「UE5でキューブを作成して」
+     - 「赤い球体を位置(100, 0, 100)に作成」
+     - 「シーンの情報を教えて」
+
+#### トラブルシューティング
+
+**MCPサーバーが認識されない場合：**
+1. 設定ファイルのJSON形式が正しいか確認（JSONバリデータを使用）
+2. Pythonパスが正しいか再確認: `which python3`
+3. ue5-server.pyファイルが指定した場所に存在するか確認
+4. Claude Desktopのログを確認
+
+**「コマンドが見つからない」エラーの場合：**
+```bash
+# Pythonがインストールされているか確認
+python3 --version
+
+# 必要に応じてPythonをインストール
+# macOS (Homebrew使用)
+brew install python3
+```
+
+**設定ファイルの場所が分からない場合：**
+```bash
+# macOS
+ls ~/Library/Application\ Support/Claude/
+
+# ファイルが存在しない場合は新規作成
+touch ~/Library/Application\ Support/Claude/claude_desktop_config.json
+```
 
 ## ライセンス
 
