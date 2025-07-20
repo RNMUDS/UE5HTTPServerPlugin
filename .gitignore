@@ -66,3 +66,5 @@ Content/*
 Source/*
 *.sln
 *.uproject
+.DS_Store
+UE5MCPProject(Mac).xcworkspace
