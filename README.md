@@ -100,3 +100,8 @@ nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
 }
 ```
 4. Claude Desktopを再起動、エラーなく起動できることを確認
+
+5. Claude Desktopで以下のように命令
+```
+ue5-controlを用いて赤いキューブを作成
+```
