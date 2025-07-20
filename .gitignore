@@ -1,0 +1,12 @@
+Binaries
+Build
+Config
+Content
+DerivedDataCache
+Intermediate
+Plugins
+Saved
+Source
+.vscode
+*.sln
+*.uproject
